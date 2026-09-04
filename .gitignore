@@ -1,0 +1,70 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+venv/
+venv311/
+.venv/
+env/
+ENV/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ML artifacts (large files — re-generate with train.py)
+backend/model/heart_disease_model.keras
+backend/model/scaler.pkl
+
+# Results (re-generate with evaluate.py)
+results/X_test.npy
+results/y_test.npy
+results/training_history.json
+
+# Data (download with preprocess.py)
+data/heart.csv
+
+# SQLite history database (auto-created at runtime)
+backend/data/history.db
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# Temporary setup files
+install_deps.py
+requirements_combined.txt
+pip_install.log
+pip_batch1.log
