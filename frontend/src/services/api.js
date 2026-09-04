@@ -1,10 +1,16 @@
 import axios from 'axios'
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+// In production (Render), VITE_API_URL is set at build time.
+// The fallback chain: env var → deployed backend → localhost for local dev.
+const RENDER_BACKEND = 'https://heartguard-backend.onrender.com'
+
+const BASE_URL =
+  import.meta.env.VITE_API_URL ||
+  (window.location.hostname !== 'localhost' ? RENDER_BACKEND : 'http://localhost:8000')
 
 const api = axios.create({
   baseURL: BASE_URL,
-  timeout: 30000,
+  timeout: 60000,
   headers: { 'Content-Type': 'application/json' },
 })
 
