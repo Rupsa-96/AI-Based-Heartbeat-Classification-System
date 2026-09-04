@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export PYENV_ROOT="${PYENV_ROOT:-/opt/render/.pyenv}"
+export PATH="$PYENV_ROOT/bin:$PYENV_ROOT/shims:$PATH"
+
+TARGET_PYTHON="3.11.9"
+
 SCRIPT_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 REPO_ROOT="$( cd -- "$SCRIPT_DIR/.." &> /dev/null && pwd )"
 
@@ -8,15 +13,71 @@ echo "=== SCRIPT_DIR = $SCRIPT_DIR"
 echo "=== REPO_ROOT  = $REPO_ROOT"
 echo "=== PWD        = $(pwd)"
 
+CURRENT_PY="$(command -v python3 || command -v python)"
+echo "=== Before: which python = $CURRENT_PY"
+"$CURRENT_PY" -c "import sys; print(f'=== Before: python version = {sys.version}')" || true
+
+NEEDS_PYENV=0
+if python3 -c "import sys; sys.exit(0 if sys.version_info < (3,13) else 1)" 2>/dev/null; then
+    echo "=== System Python is <3.13 — good, tensorflow supported."
+else
+    echo "=== System Python is >=3.13 — tensorflow NOT supported. Bootstrapping Python $TARGET_PYTHON via pyenv."
+    NEEDS_PYENV=1
+fi
+
+if [ "$NEEDS_PYENV" -eq 1 ]; then
+    if ! command -v pyenv >/dev/null 2>&1; then
+        echo "=== pyenv not in PATH. Looking in common Render locations..."
+        if [ -x "/opt/render/.pyenv/bin/pyenv" ]; then
+            export PYENV_ROOT="/opt/render/.pyenv"
+            export PATH="$PYENV_ROOT/bin:$PYENV_ROOT/shims:$PATH"
+            echo "=== Using Render-provided pyenv at $PYENV_ROOT"
+        elif [ -x "$HOME/.pyenv/bin/pyenv" ]; then
+            export PYENV_ROOT="$HOME/.pyenv"
+            export PATH="$PYENV_ROOT/bin:$PYENV_ROOT/shims:$PATH"
+            echo "=== Using user pyenv at $PYENV_ROOT"
+        else
+            echo "=== Installing pyenv from source..."
+            export PYENV_ROOT="$HOME/.pyenv"
+            rm -rf "$PYENV_ROOT"
+            git clone --depth 1 https://github.com/pyenv/pyenv.git "$PYENV_ROOT"
+            export PATH="$PYENV_ROOT/bin:$PYENV_ROOT/shims:$PATH"
+        fi
+    fi
+
+    echo "=== pyenv = $(command -v pyenv), version = $(pyenv --version)"
+    echo "=== Installing Python $TARGET_PYTHON (if missing) — this takes 1-3 minutes..."
+    PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -s "$TARGET_PYTHON"
+
+    echo "=== Activating Python $TARGET_PYTHON via pyenv local in $SCRIPT_DIR"
+    cd "$SCRIPT_DIR"
+    pyenv local "$TARGET_PYTHON"
+    pyenv rehash
+    cd "$SCRIPT_DIR"
+fi
+
+echo "=== After: which python = $(command -v python3)"
+python3 -c "import sys; print(f'=== After: python version = {sys.version}')"
+
+VENV_DIR="$SCRIPT_DIR/.venv_render"
+if [ ! -d "$VENV_DIR" ] || [ ! -x "$VENV_DIR/bin/python" ]; then
+    echo "=== Creating render venv at $VENV_DIR"
+    python3 -m venv "$VENV_DIR"
+fi
+export VIRTUAL_ENV="$VENV_DIR"
+export PATH="$VENV_DIR/bin:$PATH"
+hash -r 2>/dev/null || true
+
+echo "=== Venv python: $(command -v python)  version: $(python --version 2>&1)"
+echo "=== Venv pip:    $(command -v pip)     version: $(pip --version 2>&1)"
+
 echo "=== Installing Python dependencies ==="
 pip install --no-cache-dir --upgrade pip setuptools wheel
 pip install --no-cache-dir -r "$SCRIPT_DIR/requirements.txt"
 
 MODEL_DIR="${MODEL_DIR:-$SCRIPT_DIR/model}"
 DATA_DIR="${DATA_DIR:-$REPO_ROOT/data}"
-
-mkdir -p "$MODEL_DIR"
-mkdir -p "$DATA_DIR"
+mkdir -p "$MODEL_DIR" "$DATA_DIR"
 
 MODEL_FILE="$MODEL_DIR/heart_disease_model.keras"
 
@@ -25,7 +86,6 @@ if [ -f "$MODEL_FILE" ]; then
 else
     echo "=== Training DNN model (first deploy) ==="
     cd "$REPO_ROOT"
-
     python - <<'PYEOF'
 import os, sys, json, warnings
 warnings.filterwarnings("ignore")
@@ -33,8 +93,15 @@ os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 
 sys.path.insert(0, "training")
 
-script_dir = os.path.dirname(os.path.abspath(os.environ.get("RENDER_BUILD_SCRIPT", "backend/build.sh")))
-repo_root = os.path.dirname(script_dir) if os.path.basename(script_dir) == "backend" else script_dir
+cwd = os.getcwd()
+possible_roots = [cwd, os.path.dirname(cwd)]
+repo_root = None
+for r in possible_roots:
+    if os.path.isdir(os.path.join(r, "training")) and os.path.isdir(os.path.join(r, "backend")):
+        repo_root = r
+        break
+if repo_root is None:
+    repo_root = cwd
 
 model_dir = os.environ.get("MODEL_DIR", os.path.join(repo_root, "backend", "model"))
 data_dir  = os.environ.get("DATA_DIR",  os.path.join(repo_root, "data"))
@@ -124,5 +191,15 @@ print("Training complete.", flush=True)
 PYEOF
 
 fi
+
+echo "=== Writing render meta for start.sh ==="
+cat > "$SCRIPT_DIR/.render_meta.sh" <<META
+export PYENV_ROOT="${PYENV_ROOT}"
+export PATH="${VENV_DIR}/bin:${PYENV_ROOT}/bin:${PYENV_ROOT}/shims:\$PATH"
+export VIRTUAL_ENV="${VENV_DIR}"
+cd "$SCRIPT_DIR"
+[ -x "$(command -v pyenv 2>/dev/null)" ] && pyenv local "$TARGET_PYTHON" 2>/dev/null || true
+META
+echo "=== Wrote $SCRIPT_DIR/.render_meta.sh"
 
 echo "=== Build complete ==="
