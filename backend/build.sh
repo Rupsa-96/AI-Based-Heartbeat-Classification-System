@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+
 set -euo pipefail
 
 SCRIPT_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
@@ -8,8 +8,7 @@ PY_STANDALONE_DIR="$SCRIPT_DIR/.python_standalone"
 VENV_DIR="$SCRIPT_DIR/.venv_render"
 RENDER_LIB="$SCRIPT_DIR/.render_lib.sh"
 
-# python-build-standalone (indygreg) — 100% static, prebuilt CPython for Linux x86_64.
-# No compilation required. Installs in <30 seconds. Always 3.11 no matter what Render picks.
+
 PY_ARCHIVE="cpython-3.11.9+20240726-x86_64-unknown-linux-gnu-install_only.tar.gz"
 PY_URL="https://github.com/indygreg/python-build-standalone/releases/download/20240726/$PY_ARCHIVE"
 PY_SHA256="496adbb00c198a44d9e667f71be9e51b9f7310c84b76a286a2b6c5f57b25b2e6"

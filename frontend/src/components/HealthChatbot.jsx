@@ -10,8 +10,7 @@ const EXANG_MAP    = { 0: 'no', 1: 'yes' }
 
 function fv(map, val) { return map[val] ?? String(val) }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
+
 
 function buildContext(result, patientData) {
   const p   = patientData ?? {}

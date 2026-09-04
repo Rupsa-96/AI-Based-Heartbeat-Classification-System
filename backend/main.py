@@ -52,7 +52,7 @@ ALLOWED_ORIGINS = [
     "http://127.0.0.1:5174",
 ]
 
-# Accept the deployed frontend URL from environment variable
+
 _frontend_url = os.environ.get("FRONTEND_URL", "").strip()
 if _frontend_url and _frontend_url not in ALLOWED_ORIGINS:
     ALLOWED_ORIGINS.append(_frontend_url)
@@ -154,7 +154,7 @@ def predict(patient: PatientInput):
         result["prediction"], result["probability"], result["risk_level"],
     )
 
-    # save to history - if this fails we still return the prediction
+    
     try:
         row_id = insert_prediction(patient.model_dump(), result)
         logger.info("Saved to history as record #%d.", row_id)

@@ -8,8 +8,7 @@ logger = logging.getLogger("database")
 
 _HERE   = os.path.dirname(os.path.abspath(__file__))
 
-# On Render, mount a Disk at /var/data and set DATA_DIR=/var/data
-# Locally it falls back to backend/data/
+
 _DB_DIR = os.environ.get("DATA_DIR", os.path.join(_HERE, "data"))
 DB_PATH = os.path.join(_DB_DIR, "history.db")
 

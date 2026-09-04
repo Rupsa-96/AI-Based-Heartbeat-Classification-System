@@ -9,7 +9,7 @@ import HistoryPage from './pages/HistoryPage'
 export default function App() {
   const { pathname } = useLocation()
 
-  // Header and Footer are only shown inside the app (not on the landing page)
+  
   const isLanding = pathname === '/'
 
   return (

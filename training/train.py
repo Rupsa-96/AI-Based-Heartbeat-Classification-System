@@ -9,7 +9,7 @@ from tensorflow.keras import layers, callbacks
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from preprocess import preprocess
 
-# make runs reproducible
+
 SEED = 42
 np.random.seed(SEED)
 tf.random.set_seed(SEED)
@@ -102,7 +102,7 @@ def train():
     print(f"Input features: {input_dim}")
     print(f"Feature order: {feature_cols}")
 
-    # save feature metadata so the backend knows the expected column order
+    # save feature metadata 
     feature_meta = {
         "feature_columns": feature_cols,
         "class_counts": {str(k): int(v) for k, v in class_counts.items()},
@@ -115,7 +115,7 @@ def train():
     model = build_model(input_dim)
     model.summary()
 
-    # weight each class inversely proportional to its frequency
+    # weight each class 
     total = len(y_train)
     n_pos = int(y_train.sum())
     n_neg = total - n_pos

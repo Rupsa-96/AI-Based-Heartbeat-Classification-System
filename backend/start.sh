@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+
 set -euo pipefail
 
 SCRIPT_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
@@ -12,18 +12,18 @@ LIB2="$SCRIPT_DIR/.render_meta.sh"
 echo "[start.sh] CWD = $(pwd)"
 echo "[start.sh] SCRIPT_DIR = $SCRIPT_DIR"
 
-# Priority 1: build-time bootstrap library
+
 if [ -f "$LIB1" ]; then
     echo "[start.sh] loading .render_lib.sh (build-time bootstrap)"
-    # shellcheck disable=SC1090
+    
     source "$LIB1"
 elif [ -f "$LIB2" ]; then
     echo "[start.sh] loading legacy .render_meta.sh"
-    # shellcheck disable=SC1090
+    
     source "$LIB2"
 fi
 
-# Priority 2: explicit manual activation (robust regardless of lib sourcing)
+
 if [ -x "$SCRIPT_DIR/.venv_render/bin/python" ]; then
     export VIRTUAL_ENV="${VIRTUAL_ENV:-$SCRIPT_DIR/.venv_render}"
     export PATH="$SCRIPT_DIR/.venv_render/bin:$PATH"
