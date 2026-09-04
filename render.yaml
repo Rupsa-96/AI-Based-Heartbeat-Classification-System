@@ -2,33 +2,23 @@ services:
   - type: web
     name: heartguard-backend
     runtime: python
-    region: oregon
     plan: free
     rootDir: backend
     buildCommand: bash build.sh
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
-    disk:
-      name: heartguard-data
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
       - key: MODEL_DIR
-        value: /var/data/model
+        value: /opt/render/project/src/backend/model
       - key: DATA_DIR
-        value: /var/data
+        value: /opt/render/project/src/backend/data
       - key: FRONTEND_URL
-        fromService:
-          name: heartguard-frontend
-          type: web
-          property: host
-          transform: https://{value}
+        value: https://heartguard-frontend.onrender.com
 
   - type: web
     name: heartguard-frontend
     runtime: static
-    region: oregon
     plan: free
     rootDir: frontend
     buildCommand: npm install && npm run build
@@ -43,8 +33,4 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        fromService:
-          name: heartguard-backend
-          type: web
-          property: host
-          transform: https://{value}
+        value: https://heartguard-backend.onrender.com
