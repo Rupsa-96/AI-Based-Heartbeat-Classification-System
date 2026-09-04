@@ -11,9 +11,10 @@ services:
       - key: MODEL_DIR
         value: /opt/render/project/src/backend/model
       - key: DATA_DIR
-        value: /opt/render/project/src/backend/data
+        value: /opt/render/project/src/data
       - key: FRONTEND_URL
         value: https://heartguard-frontend.onrender.com
+    autoDeploy: yes
 
   - type: web
     name: heartguard-frontend
@@ -32,3 +33,4 @@ services:
     envVars:
       - key: VITE_API_URL
         value: https://heartguard-backend.onrender.com
+    autoDeploy: yes
