@@ -1,80 +1,104 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TARGET_PYTHON="3.11.9"
-
 SCRIPT_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 REPO_ROOT="$( cd -- "$SCRIPT_DIR/.." &> /dev/null && pwd )"
 
-LOCAL_PYENV="$SCRIPT_DIR/.pyenv_render"
-LOCAL_VENV="$SCRIPT_DIR/.venv_render"
-LOCAL_LIB="$SCRIPT_DIR/.render_lib.sh"
+PY_STANDALONE_DIR="$SCRIPT_DIR/.python_standalone"
+VENV_DIR="$SCRIPT_DIR/.venv_render"
+RENDER_LIB="$SCRIPT_DIR/.render_lib.sh"
 
-echo "=== SCRIPT_DIR = $SCRIPT_DIR"
-echo "=== REPO_ROOT  = $REPO_ROOT"
-echo "=== PWD        = $(pwd)"
-echo "=== LOCAL_PYENV = $LOCAL_PYENV"
-echo "=== LOCAL_VENV  = $LOCAL_VENV"
+# python-build-standalone (indygreg) — 100% static, prebuilt CPython for Linux x86_64.
+# No compilation required. Installs in <30 seconds. Always 3.11 no matter what Render picks.
+PY_ARCHIVE="cpython-3.11.9+20240726-x86_64-unknown-linux-gnu-install_only.tar.gz"
+PY_URL="https://github.com/indygreg/python-build-standalone/releases/download/20240726/$PY_ARCHIVE"
+PY_SHA256="496adbb00c198a44d9e667f71be9e51b9f7310c84b76a286a2b6c5f57b25b2e6"
 
-mkdir -p "$LOCAL_PYENV"
+echo "=== SCRIPT_DIR   = $SCRIPT_DIR"
+echo "=== REPO_ROOT    = $REPO_ROOT"
+echo "=== PWD          = $(pwd)"
+echo "=== PY_STANDALONE= $PY_STANDALONE_DIR"
+echo "=== VENV_DIR     = $VENV_DIR"
 
-ensure_pyenv_in_path() {
-    export PYENV_ROOT="$LOCAL_PYENV"
-    export PATH="$LOCAL_PYENV/bin:$LOCAL_PYENV/shims:$PATH"
-}
+UNAME_M="$(uname -m 2>/dev/null || echo x86_64)"
+UNAME_S="$(uname -s 2>/dev/null || echo Linux)"
+echo "=== System:      = $UNAME_S $UNAME_M"
 
-CURRENT_PY="$(command -v python3 || command -v python)"
-echo "=== Before: python = $CURRENT_PY"
-"$CURRENT_PY" -c "import sys; print(f'=== Before: python version = {sys.version}')" || true
+CURRENT_PY="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)"
+echo "=== System python: ${CURRENT_PY:-none}"
+[ -n "${CURRENT_PY:-}" ] && "$CURRENT_PY" -c "import sys; print(f'=== System python version = {sys.version}')" 2>/dev/null || true
 
-NEEDS_PYENV=0
-if python3 -c "import sys; sys.exit(0 if (3,9) <= sys.version_info < (3,13) else 1)" 2>/dev/null; then
-    echo "=== System Python is in [3.9, 3.13) — tensorflow supported. Will try it first."
-else
-    echo "=== System Python OUTSIDE [3.9, 3.13) — tensorflow NOT supported. Bootstrapping Python $TARGET_PYTHON via LOCAL pyenv."
-    NEEDS_PYENV=1
-fi
+if [ ! -x "$PY_STANDALONE_DIR/bin/python3" ]; then
+    echo "=== Downloading standalone Python 3.11.9 (indygreg build, <30s)..."
+    mkdir -p "$PY_STANDALONE_DIR"
+    TMP_TAR="$SCRIPT_DIR/.python_standalone.tmp.tar.gz"
+    rm -f "$TMP_TAR"
 
-if [ "$NEEDS_PYENV" -eq 1 ]; then
-    if [ ! -x "$LOCAL_PYENV/bin/pyenv" ]; then
-        echo "=== Installing pyenv into $LOCAL_PYENV (ships with deployed app, survives build->runtime)..."
-        rm -rf "$LOCAL_PYENV.tmp"
-        git clone --depth 1 https://github.com/pyenv/pyenv.git "$LOCAL_PYENV.tmp"
-        mv "$LOCAL_PYENV.tmp" "$LOCAL_PYENV"
+    DL_OK=0
+    for dl_cmd in \
+        "curl -fsSL -o $TMP_TAR $PY_URL" \
+        "wget -q -O $TMP_TAR $PY_URL" \
+        "python3 -c \"import urllib.request; urllib.request.urlretrieve('$PY_URL', '$TMP_TAR')\"" \
+        "python  -c \"import urllib.request; urllib.request.urlretrieve('$PY_URL', '$TMP_TAR')\""; do
+        echo "--- Trying: $dl_cmd"
+        if eval "$dl_cmd" && [ -s "$TMP_TAR" ]; then
+            DL_OK=1
+            break
+        fi
+        echo "--- command failed, trying next..."
+    done
+
+    if [ "$DL_OK" -ne 1 ] || [ ! -s "$TMP_TAR" ]; then
+        echo "=== FAIL: could not download standalone python. Trying last-resort: curl with verbose:"
+        curl -v -o "$TMP_TAR" "$PY_URL" || true
+        ls -la "$SCRIPT_DIR" || true
+        exit 1
     fi
-    ensure_pyenv_in_path
-    echo "=== pyenv = $(command -v pyenv), version = $(pyenv --version 2>&1 || true)"
-    echo "=== Installing Python $TARGET_PYTHON into LOCAL pyenv (takes 1-3 min)..."
-    PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -s -k "$TARGET_PYTHON"
-    echo "=== Activating Python $TARGET_PYTHON via pyenv local for $SCRIPT_DIR..."
-    cd "$SCRIPT_DIR"
-    pyenv local "$TARGET_PYTHON"
-    pyenv rehash
+
+    echo "=== Extracting standalone python..."
+    EX_TMP="$SCRIPT_DIR/.python_standalone.extract.tmp"
+    rm -rf "$EX_TMP"
+    mkdir -p "$EX_TMP"
+    tar -xzf "$TMP_TAR" -C "$EX_TMP"
+
+    # Archive root contains a 'python' subdir; move contents up
+    if [ -d "$EX_TMP/python" ]; then
+        mv "$EX_TMP/python/"* "$PY_STANDALONE_DIR/"
+    else
+        mv "$EX_TMP/"* "$PY_STANDALONE_DIR/"
+    fi
+    rm -rf "$EX_TMP" "$TMP_TAR"
+    chmod +x "$PY_STANDALONE_DIR/bin/python3" "$PY_STANDALONE_DIR/bin/python" "$PY_STANDALONE_DIR/bin/pip"* 2>/dev/null || true
 fi
 
-if [ "$NEEDS_PYENV" -eq 0 ]; then
-    ensure_pyenv_in_path || true
+export PATH="$PY_STANDALONE_DIR/bin:$PATH"
+hash -r 2>/dev/null || true
+
+PY="$PY_STANDALONE_DIR/bin/python3"
+echo "=== Standalone python binary: $PY"
+"$PY" -c "import sys; print(f'=== Standalone python version = {sys.version}'); print(f'=== prefix = {sys.prefix}')"
+
+if [ ! -d "$VENV_DIR" ] || [ ! -x "$VENV_DIR/bin/python" ]; then
+    echo "=== Creating dedicated venv at $VENV_DIR ..."
+    "$PY" -m venv "$VENV_DIR" --without-pip --system-site-packages || "$PY" -m venv "$VENV_DIR"
 fi
 
-FINAL_PY="$(command -v python3 || command -v python)"
-echo "=== After python detection: $FINAL_PY"
-"$FINAL_PY" -c "import sys; print(f'=== After: python version = {sys.version}')"
-
-if [ ! -d "$LOCAL_VENV" ] || [ ! -x "$LOCAL_VENV/bin/python" ]; then
-    echo "=== Creating venv at $LOCAL_VENV using $FINAL_PY ..."
-    "$FINAL_PY" -m venv "$LOCAL_VENV"
-fi
-
-export VIRTUAL_ENV="$LOCAL_VENV"
-export PATH="$LOCAL_VENV/bin:${PATH:-}"
+export VIRTUAL_ENV="$VENV_DIR"
+export PATH="$VENV_DIR/bin:$PY_STANDALONE_DIR/bin:$PATH"
 hash -r 2>/dev/null || true
 
 echo "=== Venv python: $(command -v python)  $(python --version 2>&1)"
-echo "=== Venv pip:    $(command -v pip)     $(pip --version 2>&1)"
+echo "=== Venv pip:    $(command -v pip 2>/dev/null || echo via python -m pip)"
+
+if ! python -m pip --version >/dev/null 2>&1; then
+    echo "=== Bootstrapping pip inside venv via ensurepip..."
+    python -m ensurepip --upgrade || "$PY" -m ensurepip --upgrade --default-pip
+    python -m pip install --no-cache-dir --upgrade pip setuptools wheel
+fi
 
 echo "=== Installing Python dependencies ==="
-pip install --no-cache-dir --upgrade pip setuptools wheel
-pip install --no-cache-dir -r "$SCRIPT_DIR/requirements.txt"
+python -m pip install --no-cache-dir --upgrade pip setuptools wheel
+python -m pip install --no-cache-dir -r "$SCRIPT_DIR/requirements.txt"
 
 MODEL_DIR="${MODEL_DIR:-$SCRIPT_DIR/model}"
 DATA_DIR="${DATA_DIR:-$REPO_ROOT/data}"
@@ -189,36 +213,18 @@ print("Training complete.", flush=True)
 PYEOF
 fi
 
-echo "=== Writing runtime bootstrap library $LOCAL_LIB ==="
-cat > "$LOCAL_LIB" <<LIBEOF
+echo "=== Writing runtime bootstrap library $RENDER_LIB ==="
+cat > "$RENDER_LIB" <<LIBEOF
 #!/usr/bin/env bash
+# Generated by build.sh. Source this in start.sh to get the exact same runtime.
 SCRIPT_DIR_LIB="$SCRIPT_DIR"
-LOCAL_PYENV_LIB="$LOCAL_PYENV"
-LOCAL_VENV_LIB="$LOCAL_VENV"
-TARGET_PYTHON_LIB="$TARGET_PYTHON"
+PY_STANDALONE_DIR_LIB="$PY_STANDALONE_DIR"
+VENV_DIR_LIB="$VENV_DIR"
 
-export PYENV_ROOT="\${PYENV_ROOT:-\$LOCAL_PYENV_LIB}"
-export VIRTUAL_ENV="\${VIRTUAL_ENV:-\$LOCAL_VENV_LIB}"
-PATH="\$LOCAL_VENV_LIB/bin:\$LOCAL_PYENV_LIB/bin:\$LOCAL_PYENV_LIB/shims:\${PATH:-}"
-export PATH
-
-activate_render_env() {
-    if [ -x "\$LOCAL_VENV_LIB/bin/python" ]; then
-        return 0
-    fi
-    if [ -x "\$LOCAL_PYENV_LIB/bin/pyenv" ]; then
-        (cd "\$SCRIPT_DIR_LIB" && "\$LOCAL_PYENV_LIB/bin/pyenv" local "\$TARGET_PYTHON_LIB" 2>/dev/null || true)
-    fi
-    if command -v python3 >/dev/null 2>&1; then
-        if python3 -c "import sys; sys.exit(0 if (3,9) <= sys.version_info < (3,13) else 1)" 2>/dev/null; then
-            if [ ! -d "\$LOCAL_VENV_LIB" ]; then
-                python3 -m venv "\$LOCAL_VENV_LIB"
-            fi
-        fi
-    fi
-}
-
-activate_render_env || true
+export PYTHONHOME=""
+export VIRTUAL_ENV="\${VIRTUAL_ENV:-\$VENV_DIR_LIB}"
+export PATH="\$VENV_DIR_LIB/bin:\$PY_STANDALONE_DIR_LIB/bin:\${PATH:-}"
+export LD_LIBRARY_PATH="\$PY_STANDALONE_DIR_LIB/lib:\${LD_LIBRARY_PATH:-}"
 hash -r 2>/dev/null || true
 LIBEOF
 

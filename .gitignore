@@ -72,6 +72,7 @@ pip_batch1.log
 # Render-specific runtime artifacts (auto-generated at build time)
 backend/.venv_render/
 backend/.pyenv_render/
+backend/.python_standalone/
 backend/.python-version
 backend/.render_meta.sh
 backend/.render_lib.sh
