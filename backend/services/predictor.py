@@ -8,7 +8,9 @@ import tensorflow as tf
 logger = logging.getLogger("predictor")
 
 _HERE      = os.path.dirname(os.path.abspath(__file__))
-_MODEL_DIR = os.path.join(_HERE, "..", "model")
+
+# MODEL_DIR can be overridden via env var so Render Disk or any path works
+_MODEL_DIR  = os.environ.get("MODEL_DIR", os.path.join(_HERE, "..", "model"))
 MODEL_PATH  = os.path.join(_MODEL_DIR, "heart_disease_model.keras")
 SCALER_PATH = os.path.join(_MODEL_DIR, "scaler.pkl")
 META_PATH   = os.path.join(_MODEL_DIR, "feature_meta.json")
