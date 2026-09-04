@@ -74,12 +74,21 @@ async def startup_event():
         init_db()
     except Exception as e:
         logger.error("Database init failed: %s", str(e))
-    try:
-        HeartDiseasePredictor.get_instance()
-        logger.info("Model loaded. Ready for predictions.")
-    except FileNotFoundError as e:
-        logger.error("Model not found: %s", str(e))
-        logger.warning("Run python training/train.py to train the model first.")
+
+    import threading
+
+    def load_model_background():
+        try:
+            HeartDiseasePredictor.get_instance()
+            logger.info("Model loaded in background. Ready for predictions.")
+        except FileNotFoundError as e:
+            logger.error("Model not found: %s", str(e))
+        except Exception as e:
+            logger.error("Model load error: %s", str(e))
+
+    t = threading.Thread(target=load_model_background, daemon=True)
+    t.start()
+    logger.info("Server started. Model loading in background...")
 
 
 @app.get("/", tags=["Root"])
