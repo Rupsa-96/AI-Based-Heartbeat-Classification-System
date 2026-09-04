@@ -2,13 +2,13 @@ services:
   - type: web
     name: heartguard-backend
     runtime: python
-    buildCommand: bash backend/build.sh
-    startCommand: bash backend/start.sh
+    buildCommand: cd backend && bash build.sh
+    startCommand: cd backend && bash start.sh
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
       - key: PYENV_ROOT
-        value: /opt/render/.pyenv
+        sync: false
       - key: MODEL_DIR
         value: /opt/render/project/src/backend/model
       - key: DATA_DIR
